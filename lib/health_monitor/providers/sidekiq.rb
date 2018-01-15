@@ -9,21 +9,32 @@ module HealthMonitor
       class Configuration
         DEFAULT_LATENCY_TIMEOUT = 30
         DEFAULT_QUEUES_SIZE = 100
+        DEFAULT_QUEUES = []
 
-        attr_accessor :latency, :queue_size
+        attr_accessor :latency, :queue_size, :queues
 
         def initialize
           @latency = DEFAULT_LATENCY_TIMEOUT
           @queue_size = DEFAULT_QUEUES_SIZE
+          @queues = DEFAULT_QUEUES
         end
       end
 
       def check!
         check_workers!
         check_processes!
-        check_latency!
-        check_queue_size!
+        if configuration.queues.length > 0
+          configuration.queues.each do |name|
+            queue = ::Sidekiq::Queue.new(name)
+            check_latency!(queue)
+            check_queue_size!(queue)
+          end
+        else
+          check_latency!
+          check_queue_size!
+        end
         check_redis!
+
       rescue Exception => e
         raise SidekiqException.new(e.message)
       end
@@ -49,7 +60,7 @@ module HealthMonitor
         raise 'Sidekiq alive processes number is 0!'
       end
 
-      def check_latency!
+      def check_latency!(queue = default_queue)
         latency = queue.latency
 
         return unless latency > configuration.latency
@@ -57,7 +68,7 @@ module HealthMonitor
         raise "latency #{latency} is greater than #{configuration.latency}"
       end
 
-      def check_queue_size!
+      def check_queue_size!(queue = default_queue)
         size = queue.size
 
         return unless size > configuration.queue_size
@@ -73,7 +84,7 @@ module HealthMonitor
         end
       end
 
-      private def queue
+      private def default_queue
         @queue ||= ::Sidekiq::Queue.new
       end
     end
