@@ -10,14 +10,21 @@ module HealthMonitor
 
     def check
       @statuses = statuses
+      ok = @statuses[:results]
+        .map { |s| s[:status] == "OK" }
+        .include?(false) == false
+
+      status = ok ? 200 : 500
 
       respond_to do |format|
-        format.html
+        format.html do
+          render status: status
+        end
         format.json do
-          render json: statuses.to_json
+          render json: statuses.to_json, status: status
         end
         format.xml do
-          render xml: statuses.to_xml
+          render xml: statuses.to_xml, status: status
         end
       end
     end
